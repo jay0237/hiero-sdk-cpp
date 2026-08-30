@@ -38,13 +38,38 @@ protected:
   [[nodiscard]] inline const LedgerId& getTestLedgerId() const { return mTestLedgerId; }
   [[nodiscard]] inline bool getTestWaitForExpiry() const { return mTestWaitForExpiry; }
 
+  [[nodiscard]] ScheduleInfo createTestScheduleInfo() const
+  {
+    ScheduleInfo info;
+    info.mScheduleId = getTestScheduleId();
+    info.mExecutionTime = getTestExecutionTime();
+    info.mDeletionTime = getTestExecutionTime();
+    info.mExpirationTime = getTestExpirationTime();
+    info.mScheduledTransaction = WrappedTransaction(AccountCreateTransaction());
+    info.mMemo = getTestMemo();
+    info.mAdminKey = PublicKey::fromBytesDer(getTestAdminKey()->toBytesDer());
+    info.mSignatories = KeyList::fromProtobuf(*getTestSigners().toProtobuf());
+    info.mCreatorAccountId = getTestCreatorAccountId();
+    info.mPayerAccountId = getTestPayerAccountId();
+    info.mScheduledTransactionId = getTestScheduledTransactionId();
+    info.mLedgerId = getTestLedgerId();
+    info.mWaitForExpiry = getTestWaitForExpiry();
+    return info;
+  }
+
 private:
   const ScheduleId mTestScheduleId = ScheduleId(1ULL, 2ULL, 3ULL);
-  const std::chrono::system_clock::time_point mTestExecutionTime = std::chrono::system_clock::now();
-  const std::chrono::system_clock::time_point mTestExpirationTime = std::chrono::system_clock::now();
+  const std::chrono::system_clock::time_point mTestExecutionTime =
+    std::chrono::system_clock::time_point(std::chrono::seconds(1700000000));
+  const std::chrono::system_clock::time_point mTestExpirationTime =
+    std::chrono::system_clock::time_point(std::chrono::seconds(1700003600));
   const WrappedTransaction mTestSchedulableTransaction = WrappedTransaction(AccountCreateTransaction());
   const std::string mTestMemo = "test memo";
-  const std::shared_ptr<PublicKey> mTestAdminKey = ED25519PrivateKey::generatePrivateKey()->getPublicKey();
+  // Embedded keys are deterministic, publicly known test-only material, not real credentials.
+  const std::shared_ptr<PublicKey> mTestAdminKey =
+    ED25519PrivateKey::fromString(
+      "302e020100300506032b657004220420db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e10")
+      ->getPublicKey();
   const KeyList mTestSigners = KeyList::of(
     { ED25519PrivateKey::fromString(
         "302e020100300506032b657004220420db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e10"),
@@ -54,7 +79,7 @@ private:
         "302e020100300506032b657004220420db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e12") });
   const AccountId mTestCreatorAccountId = AccountId(4ULL, 5ULL, 6ULL);
   const AccountId mTestPayerAccountId = AccountId(7ULL, 8ULL, 9ULL);
-  const TransactionId mTestScheduledTransactionId = TransactionId::generate(AccountId(10ULL, 11ULL, 12ULL));
+  const TransactionId mTestScheduledTransactionId = TransactionId::fromString("10.11.12@1700000000.000000000");
   const LedgerId mTestLedgerId = LedgerId({ std::byte(0x0D), std::byte(0x0E), std::byte(0x0F) });
   const bool mTestWaitForExpiry = true;
 };
@@ -164,7 +189,7 @@ TEST_F(ScheduleInfoUnitTests, ToProtobuf)
   EXPECT_EQ(protoScheduleInfo->execution_time().seconds(),
             internal::TimestampConverter::toProtobuf(getTestExecutionTime())->seconds());
   EXPECT_EQ(protoScheduleInfo->expirationtime().seconds(),
-            internal::TimestampConverter::toProtobuf(getTestExecutionTime())->seconds());
+            internal::TimestampConverter::toProtobuf(getTestExpirationTime())->seconds());
   EXPECT_TRUE(protoScheduleInfo->scheduledtransactionbody().has_cryptocreateaccount());
   EXPECT_EQ(protoScheduleInfo->memo(), getTestMemo());
   EXPECT_EQ(protoScheduleInfo->adminkey().ed25519(),
@@ -211,4 +236,150 @@ TEST_F(ScheduleInfoUnitTests, ToBytes)
 
   // Then
   EXPECT_EQ(bytes, internal::Utilities::stringToByteVector(scheduleInfo.toProtobuf()->SerializeAsString()));
+}
+
+//-----
+TEST_F(ScheduleInfoUnitTests, Equality)
+{
+  // Given
+  ScheduleInfo scheduleInfo1;
+  scheduleInfo1.mScheduleId = getTestScheduleId();
+  scheduleInfo1.mExecutionTime = getTestExecutionTime();
+  scheduleInfo1.mExpirationTime = getTestExpirationTime();
+  scheduleInfo1.mScheduledTransaction = getTestSchedulableTransaction();
+  scheduleInfo1.mMemo = getTestMemo();
+  scheduleInfo1.mAdminKey = getTestAdminKey();
+  scheduleInfo1.mSignatories = getTestSigners();
+  scheduleInfo1.mCreatorAccountId = getTestCreatorAccountId();
+  scheduleInfo1.mPayerAccountId = getTestPayerAccountId();
+  scheduleInfo1.mScheduledTransactionId = getTestScheduledTransactionId();
+  scheduleInfo1.mLedgerId = getTestLedgerId();
+  scheduleInfo1.mWaitForExpiry = getTestWaitForExpiry();
+
+  ScheduleInfo scheduleInfo2 = scheduleInfo1;
+
+  // Then
+  EXPECT_TRUE(scheduleInfo1 == scheduleInfo2);
+}
+
+//-----
+TEST_F(ScheduleInfoUnitTests, Inequality)
+{
+  // Given
+  ScheduleInfo scheduleInfo1;
+  scheduleInfo1.mScheduleId = getTestScheduleId();
+  scheduleInfo1.mExecutionTime = getTestExecutionTime();
+  scheduleInfo1.mExpirationTime = getTestExpirationTime();
+  scheduleInfo1.mScheduledTransaction = getTestSchedulableTransaction();
+  scheduleInfo1.mMemo = getTestMemo();
+  scheduleInfo1.mAdminKey = getTestAdminKey();
+  scheduleInfo1.mSignatories = getTestSigners();
+  scheduleInfo1.mCreatorAccountId = getTestCreatorAccountId();
+  scheduleInfo1.mPayerAccountId = getTestPayerAccountId();
+  scheduleInfo1.mScheduledTransactionId = getTestScheduledTransactionId();
+  scheduleInfo1.mLedgerId = getTestLedgerId();
+  scheduleInfo1.mWaitForExpiry = getTestWaitForExpiry();
+
+  ScheduleInfo scheduleInfo2 = scheduleInfo1;
+  scheduleInfo2.mMemo = "different memo";
+
+  // Then
+  EXPECT_FALSE(scheduleInfo1 == scheduleInfo2);
+
+  // Given
+  scheduleInfo2 = scheduleInfo1;
+  scheduleInfo2.mAdminKey = nullptr;
+
+  // Then
+  EXPECT_FALSE(scheduleInfo1 == scheduleInfo2);
+}
+
+//-----
+TEST_F(ScheduleInfoUnitTests, DefaultConstructedInstancesAreEqual)
+{
+  // Given
+  const ScheduleInfo a;
+  const ScheduleInfo b;
+
+  // Then
+  EXPECT_TRUE(a == b);
+  EXPECT_TRUE(b == a);
+}
+
+//-----
+TEST_F(ScheduleInfoUnitTests, IndependentlyConstructedInstancesAreEqual)
+{
+  // Given
+  const ScheduleInfo a = createTestScheduleInfo();
+  const ScheduleInfo b = createTestScheduleInfo();
+
+  // Then
+  ASSERT_NE(a.mAdminKey.get(), b.mAdminKey.get());
+  EXPECT_TRUE(a == b);
+  EXPECT_TRUE(b == a);
+}
+
+//-----
+TEST_F(ScheduleInfoUnitTests, DifferentFieldsAreNotEqual)
+{
+  const auto expectDifferent = [this](const char* field, const auto& change)
+  {
+    SCOPED_TRACE(field);
+
+    // Given
+    const ScheduleInfo a = createTestScheduleInfo();
+    ScheduleInfo b = createTestScheduleInfo();
+    ASSERT_TRUE(a == b);
+    ASSERT_TRUE(b == a);
+
+    // When
+    change(b);
+
+    // Then
+    EXPECT_FALSE(a == b);
+    EXPECT_FALSE(b == a);
+  };
+
+  expectDifferent("schedule ID", [](ScheduleInfo& b) { b.mScheduleId = ScheduleId(1ULL, 2ULL, 4ULL); });
+  expectDifferent("execution time absent", [](ScheduleInfo& b) { b.mExecutionTime.reset(); });
+  expectDifferent("execution time value", [](ScheduleInfo& b) { *b.mExecutionTime += std::chrono::seconds(1); });
+  expectDifferent("deletion time absent", [](ScheduleInfo& b) { b.mDeletionTime.reset(); });
+  expectDifferent("deletion time value", [](ScheduleInfo& b) { *b.mDeletionTime += std::chrono::seconds(1); });
+  expectDifferent("expiration time", [](ScheduleInfo& b) { b.mExpirationTime += std::chrono::seconds(1); });
+  expectDifferent("scheduled transaction",
+                  [](ScheduleInfo& b)
+                  {
+                    b.mScheduledTransaction.getTransaction<AccountCreateTransaction>()->setTransactionMemo(
+                      "different transaction memo");
+                  });
+  expectDifferent(
+    "signatories",
+    [](ScheduleInfo& b)
+    {
+      b.mSignatories = KeyList::of(
+        { ED25519PrivateKey::fromString(
+            "302e020100300506032b657004220420db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e10"),
+          ED25519PrivateKey::fromString(
+            "302e020100300506032b657004220420db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e11"),
+          ED25519PrivateKey::fromString(
+            "302e020100300506032b657004220420db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e13") });
+    });
+  expectDifferent("creator account ID", [](ScheduleInfo& b) { b.mCreatorAccountId = AccountId(4ULL, 5ULL, 7ULL); });
+  expectDifferent("payer account ID", [](ScheduleInfo& b) { b.mPayerAccountId = AccountId(7ULL, 8ULL, 10ULL); });
+  expectDifferent("scheduled transaction ID",
+                  [](ScheduleInfo& b) { b.mScheduledTransactionId.mValidTransactionTime += std::chrono::seconds(1); });
+  expectDifferent("ledger ID",
+                  [](ScheduleInfo& b) {
+                    b.mLedgerId = LedgerId({ std::byte(0x0D), std::byte(0x0E), std::byte(0x10) });
+                  });
+  expectDifferent("wait for expiry", [](ScheduleInfo& b) { b.mWaitForExpiry = !b.mWaitForExpiry; });
+  expectDifferent(
+    "administrative key",
+    [](ScheduleInfo& b)
+    {
+      b.mAdminKey =
+        ED25519PrivateKey::fromString(
+          "302e020100300506032b657004220420db484b828e64b2d8f12ce3c0a0e93a0b8cce7af1bb8f39c97732394482538e11")
+          ->getPublicKey();
+    });
 }
